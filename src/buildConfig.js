@@ -102,8 +102,10 @@ const computeThresholds = (stops, type) => {
 };
 
 export default (config) => {
-  if (!Array.isArray(config.entities))
-    throw new Error(`Please provide the "entities" option as a list.\n See ${URL_DOCS}`);
+  const hasEntities = Array.isArray(config.entities) && config.entities.length > 0;
+  const hasQueries = Array.isArray(config.queries) && config.queries.length > 0;
+  if (!hasEntities && !hasQueries)
+    throw new Error(`Please provide the "entities" and/or "queries" option as a list.\n See ${URL_DOCS}`);
   if (config.line_color_above || config.line_color_below)
     throw new Error(
       `"line_color_above/line_color_below" was removed, please use "color_thresholds".\n See ${URL_DOCS}`,
@@ -129,6 +131,7 @@ export default (config) => {
     state_map: [],
     cache: true,
     value_factor: 0,
+    prometheus: {},
     tap_action: {
       action: 'more-info',
     },
@@ -136,9 +139,28 @@ export default (config) => {
     show: { ...DEFAULT_SHOW, ...config.show },
   };
 
+  if (!conf.prometheus) conf.prometheus = {};
+  if (!Array.isArray(conf.entities)) conf.entities = [];
+
   conf.entities.forEach((entity, i) => {
     if (typeof entity === 'string') conf.entities[i] = { entity };
   });
+
+  if (Array.isArray(conf.queries)) {
+    conf.queries.forEach((item) => {
+      conf.entities.push(typeof item === 'string' ? { query: item } : { ...item });
+    });
+  }
+
+  conf.entities.forEach((item, i) => {
+    if (!item.entity && !item.query) {
+      throw new Error(`Please provide "entity" or "query" for series ${i + 1}.\n See ${URL_DOCS}`);
+    }
+  });
+
+  if (conf.entities.some(item => item.query) && !conf.prometheus.url) {
+    throw new Error(`Please provide prometheus.url when using PromQL queries.\n See ${URL_DOCS}`);
+  }
 
   conf.state_map.forEach((state, i) => {
     // convert string values to objects
@@ -177,6 +199,14 @@ export default (config) => {
       conf.points_per_hour = MAX_BARS / (conf.hours_to_show * entities);
       log(`Not enough space, adjusting points_per_hour to ${conf.points_per_hour}`);
     }
+  }
+
+  if (conf.entities.some(item => item.query) && conf.prometheus.interval == null) {
+    conf.prometheus.interval = 3600 / conf.points_per_hour;
+  }
+
+  if (!config.tap_action && conf.entities.length && conf.entities.every(item => item.query)) {
+    conf.tap_action = { action: 'none' };
   }
 
   return conf;

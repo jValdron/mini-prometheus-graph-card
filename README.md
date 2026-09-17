@@ -1,7 +1,13 @@
-# Lovelace Mini Graph Card
-A minimalistic and customizable graph card for [Home Assistant](https://github.com/home-assistant/home-assistant) Lovelace UI.
+# Lovelace Mini Prometheus Graph Card
+A fork of [kalkih/mini-graph-card](https://github.com/kalkih/mini-graph-card) for [Home Assistant](https://github.com/home-assistant/home-assistant) Lovelace UI.
 
-The card works with entities from within the **sensor** & **binary_sensor** domain and displays the sensors current state as well as a line graph representation of the history.
+This card keeps the original mini-graph-card look and Home Assistant entity history support, and adds optional PromQL queries against an existing Prometheus instance. Prometheus metrics are **not** imported as Home Assistant sensors and are **not** stored in Recorder.
+
+This fork was created with AI assistance.
+
+The card works with:
+* Home Assistant **sensor** / **binary_sensor** entities (Recorder history), and/or
+* Prometheus PromQL queries (`/api/v1/query_range` for graphs, `/api/v1/query` when only the current value is needed)
 
 ![Preview](https://user-images.githubusercontent.com/457678/52977264-edf34980-33cc-11e9-903b-cee43b307ed8.png)
 
@@ -13,11 +19,11 @@ This card is available in [HACS](https://hacs.xyz/) (Home Assistant Community St
 
 <small>*HACS is a third party community store and is not included in Home Assistant out of the box.*</small>
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=kalkih&repository=mini-graph-card)
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=jValdron&repository=mini-prometheus-graph-card)
 
 ### Manual install
 
-1. Download and copy `mini-graph-card-bundle.js` from the [latest release](https://github.com/kalkih/mini-graph-card/releases/latest) into your `config/www` directory.
+1. Download and copy `mini-prometheus-graph-card-bundle.js` from the [latest release](https://github.com/jValdron/mini-prometheus-graph-card/releases/latest) into your `config/www` directory.
 
 2. Add the resource reference as decribed below.
 
@@ -26,21 +32,21 @@ This card is available in [HACS](https://hacs.xyz/) (Home Assistant Community St
 
 1. Move into your `config/www` directory.
 
-2. Grab `mini-graph-card-bundle.js`:
+2. Grab `mini-prometheus-graph-card-bundle.js`:
 
   ```console
-  $ wget https://github.com/kalkih/mini-graph-card/releases/download/v0.13.0/mini-graph-card-bundle.js
+  $ wget https://github.com/jValdron/mini-prometheus-graph-card/releases/download/v0.13.0-prom1/mini-prometheus-graph-card-bundle.js
   ```
 
 3. Add the resource reference as decribed below.
 
 ### Add resource reference
 
-If you configure Lovelace via YAML, add a reference to `mini-graph-card-bundle.js` inside your `configuration.yaml`:
+If you configure Lovelace via YAML, add a reference to `mini-prometheus-graph-card-bundle.js` inside your `configuration.yaml`:
 
   ```yaml
   resources:
-    - url: /local/mini-graph-card-bundle.js?v=0.13.0
+    - url: /local/mini-prometheus-graph-card-bundle.js?v=0.13.0-prom1
       type: module
   ```
 
@@ -48,22 +54,22 @@ Else, if you prefer the graphical editor, use the menu to add the resource:
 
 1. Make sure, advanced mode is enabled in your user profile (click on your user name to get there)
 2. Navigate to Configuration -> Lovelace Dashboards -> Resources Tab. Hit orange (+) icon
-3. Enter URL `/local/mini-graph-card-bundle.js` and select type "JavaScript Module".
-(Use `/hacsfiles/mini-graph-card/mini-graph-card-bundle.js` and select "JavaScript Module" for HACS install)
+3. Enter URL `/local/mini-prometheus-graph-card-bundle.js` and select type "JavaScript Module".
+(Use `/hacsfiles/mini-prometheus-graph-card/mini-prometheus-graph-card-bundle.js` and select "JavaScript Module" for HACS install)
 4. Restart Home Assistant.
 
 ## Updating
 **If you have a version older than v0.0.8 installed, please delete the current files and follow the installation instructions again.**
 
-1. Find your `mini-graph-card-bundle.js` file in `config/www` or wherever you ended up storing it.
+1. Find your `mini-prometheus-graph-card-bundle.js` file in `config/www` or wherever you ended up storing it.
 
-2. Replace the local file with the latest one attached in the [latest release](https://github.com/kalkih/mini-graph-card/releases/latest).
+2. Replace the local file with the latest one attached in the [latest release](https://github.com/jValdron/mini-prometheus-graph-card/releases/latest).
 
 3. Add the new version number to the end of the cards reference url in your `ui-lovelace.yaml` like below:
 
   ```yaml
   resources:
-    - url: /local/mini-graph-card-bundle.js?v=0.13.0
+    - url: /local/mini-prometheus-graph-card-bundle.js?v=0.13.0-prom1
       type: module
   ```
 
@@ -79,8 +85,10 @@ We recommend looking at the [Example usage section](#example-usage) to understan
 #### Card options
 | Name | Type | Default | Since | Description |
 |------|:----:|:-------:|:-----:|-------------|
-| type ***(required)*** | string |  | v0.0.1 | `custom:mini-graph-card`.
-| entities ***(required)*** | list |  | v0.2.0 | One or more sensor entities in a list, see [entities object](#entities-object) for additional entity options.
+| type ***(required)*** | string |  | v0.0.1 | `custom:mini-prometheus-graph-card`.
+| entities | list |  | v0.2.0 | One or more sensor entities in a list, see [entities object](#entities-object) for additional entity options. Required unless `queries` is set.
+| queries | list |  | v0.13.0<br>(prom1) | One or more PromQL queries, see [queries object](#queries-object). Required unless `entities` is set. Mixed cards may use both.
+| prometheus | [prometheus object](#prometheus-object) |  | v0.13.0<br>(prom1) | Prometheus connection. Required when any series uses a PromQL `query`.
 | icon | string |  | v0.0.1 | Set a custom icon from any of the available mdi icons.
 | icon_image | string |  | v0.12.0 | Override icon with an image url
 | name | string |  | v0.0.1 | Set a custom name which is displayed beside the icon.
@@ -91,7 +99,7 @@ We recommend looking at the [Example usage section](#example-usage) to understan
 | points_per_hour | number | `0.5` | v0.2.0 | Specify amount of data points the graph should display for each hour, *(basically the detail/accuracy/smoothing of the graph)*.
 | aggregate_func | string | `avg` | v0.8.0 | Specify [aggregate function](#aggregate-functions) used to calculate point/bar in the graph.
 | group_by | string | `interval` | v0.8.0 | Specify type of grouping of data, dynamic `interval`, `date` or `hour`.
-| update_interval | number |  | v0.4.0 | Specify a custom update interval of the history data (in seconds), instead of on every state change.
+| update_interval | number |  | v0.4.0 | Specify a custom update interval of the history data (in seconds), instead of on every state change. Prometheus series poll every 60 seconds when this is unset.
 | cache | boolean | `true` | v0.9.0 | Enable/disable local caching of history data.
 | show | list |  | v0.2.0 | List of UI elements to display/hide, for available items see [available show options](#available-show-options).
 | animate | boolean | `false` | v0.2.0 | Add a reveal animation to the graph.
@@ -124,26 +132,28 @@ We recommend looking at the [Example usage section](#example-usage) to understan
 Entities may be listed directly (as per `sensor.temperature` in the example below), or defined using
 properties of the Entity object detailed in the following table (as per `sensor.pressure` in the example below).
 
-| Name | Type | Default | Description |
-|------|:----:|:-------:|-------------|
-| entity ***(required)*** | string |         | Entity id of the sensor.
-| attribute | string |         | Retrieves an attribute or [sub-attribute (attr1.attr2...)](#accessing-attributes-in-complex-structures) instead of the state
-| name | string |         | Set a custom display name, defaults to entity's friendly_name.
-| color | string |         | Set a custom color, overrides all other color options including thresholds.
-| unit | string |         | Set a custom unit of measurement, overrides `unit` set in base config (`''` value for an empty unit).
-| aggregate_func | string |         | Override for aggregate function used to calculate point on the graph, `avg`, `median`, `min`, `max`, `first`, `last`, `sum`.
-| show_state | boolean |         | Display the current state.
-| show_legend_state | boolean |  false  | Display the current state as part of the legend.
-| show_indicator | boolean |         | Display a color indicator next to the state.
-| show_graph | boolean |         | Set to false to completely hide the entity in the graph.
-| show_line | boolean |         | Set to false to hide the line.
-| show_fill | boolean |         | Set to false to hide the fill.
-| show_points | boolean |         | Set to false to hide the points.
-| show_legend | boolean |         | Set to false to turn hide from the legend.
-| state_adaptive_color | boolean |         | Make the color of the state adapt to the entity color.
-| y_axis | string |         | If 'secondary', displays using the secondary y-axis on the right.
-| fixed_value | boolean |         | Set to true to graph the entity's current state as a fixed value instead of graphing its state history.
-| smoothing | boolean |         | Override for a flag indicating whether to make graph line smooth.
+| Name | Type | Default | Since | Description |
+|------|:----:|:-------:|:-----:|-------------|
+| entity | string |         |  | Entity id of the sensor. Required unless `query` is set.
+| query | string |         | v0.13.0<br>(prom1) | PromQL query for this series (alternative to `entity`). See [queries object](#queries-object).
+| attribute | string |         |  | Retrieves an attribute or [sub-attribute (attr1.attr2...)](#accessing-attributes-in-complex-structures) instead of the state
+| name | string |         |  | Set a custom display name, defaults to entity's friendly_name.
+| color | string |         |  | Set a custom color, overrides all other color options including thresholds.
+| unit | string |         |  | Set a custom unit of measurement, overrides `unit` set in base config (`''` value for an empty unit).
+| aggregate_func | string |         |  | Override for aggregate function used to calculate point on the graph, `avg`, `median`, `min`, `max`, `first`, `last`, `sum`.
+| show_state | boolean |         |  | Display the current state.
+| show_legend_state | boolean |  false  |  | Display the current state as part of the legend.
+| show_indicator | boolean |         |  | Display a color indicator next to the state.
+| show_graph | boolean |         |  | Set to false to completely hide the entity in the graph.
+| show_line | boolean |         |  | Set to false to hide the line.
+| show_fill | boolean |         |  | Set to false to hide the fill.
+| show_points | boolean |         |  | Set to false to hide the points.
+| show_legend | boolean |         |  | Set to false to turn hide from the legend.
+| state_adaptive_color | boolean |         |  | Make the color of the state adapt to the entity color.
+| y_axis | string |         |  | If 'secondary', displays using the secondary y-axis on the right.
+| fixed_value | boolean |         |  | Set to true to graph the entity's current state as a fixed value instead of graphing its state history.
+| smoothing | boolean |         |  | Override for a flag indicating whether to make graph line smooth.
+| interval | string/number |         | v0.13.0<br>(prom1) | Prometheus `step` when this series uses `query`.
 
 ```yaml
 entities:
@@ -153,6 +163,46 @@ entities:
     show_state: true
   - sensor.humidity
 ```
+
+#### Queries object
+Use `queries` (or `query` on an entity object) for Prometheus series. Per-series options such as `name`, `color`, `unit`, `show_state`, `y_axis`, and `show_graph` work the same as for entities.
+
+| Name | Type | Default | Since | Description |
+|------|:----:|:-------:|:-----:|-------------|
+| query ***(required)*** | string |         | v0.13.0<br>(prom1) | PromQL expression. One query is one graph series; if Prometheus returns multiple time series, the first is used.
+| name | string |         | v0.13.0<br>(prom1) | Display name. Defaults to the query string.
+| interval | string/number | `prometheus.interval` | v0.13.0<br>(prom1) | Prometheus `step` for range queries (`30s`, `1m`, or seconds). Ignored for instant queries.
+| color, unit, show_state, … |  |         | v0.13.0<br>(prom1) | Same as [entities object](#entities-object).
+
+```yaml
+queries:
+  - node_load1{instance="node1:9100"}
+  - query: ups_load_percent
+    name: UPS Load
+    interval: 30s
+    unit: "%"
+    show_state: true
+```
+
+`show_graph: false` (or card `show.graph: false` without extrema/average/`state: last`) uses a Prometheus **instant** query for the current value only.
+
+#### Prometheus object
+Required when any series has a PromQL `query`.
+
+| Name | Type | Default | Since | Description |
+|------|:----:|:-------:|:-----:|-------------|
+| url ***(required)*** | string |         | v0.13.0<br>(prom1) | Prometheus base URL, e.g. `https://prometheus.example.com` or a same-origin path such as `/prometheus`.
+| interval | string/number | `3600 / points_per_hour` seconds | v0.13.0<br>(prom1) | Default `step` for `/api/v1/query_range`.
+| token | string |         | v0.13.0<br>(prom1) | Optional Bearer token (`Authorization: Bearer …`).
+| username | string |         | v0.13.0<br>(prom1) | Optional HTTP basic auth username.
+| password | string |         | v0.13.0<br>(prom1) | Optional HTTP basic auth password.
+| headers | map |         | v0.13.0<br>(prom1) | Extra HTTP headers. Lovelace YAML is visible in the browser; prefer a reverse proxy for secrets.
+
+The card runs in the browser and calls Prometheus with `fetch`. There is no Home Assistant backend proxy.
+
+* Prefer a **same-origin reverse proxy** (Traefik/nginx) in front of Prometheus so CORS and credentials stay off the card.
+* A direct Prometheus URL needs CORS (`Access-Control-Allow-Origin`, and `Authorization` if you send auth headers).
+* Prometheus series never create HA entities or Recorder history.
 
 #### Available show options
 All properties are optional.
@@ -273,7 +323,7 @@ The following theme variables can be set in your HA theme to customize the appea
 ![Single entity card](https://user-images.githubusercontent.com/457678/52009150-884d2500-24d2-11e9-9f2b-2981210d3897.png)
 
 ```yaml
-type: custom:mini-graph-card
+type: custom:mini-prometheus-graph-card
 entities:
  - sensor.illumination
 ```
@@ -283,7 +333,7 @@ entities:
 ![Alternative style](https://user-images.githubusercontent.com/457678/52009161-8daa6f80-24d2-11e9-8678-47658a181615.png)
 
 ```yaml
-type: custom:mini-graph-card
+type: custom:mini-prometheus-graph-card
 entities:
  - sensor.illumination
 align_icon: left
@@ -297,7 +347,7 @@ show:
 ![Multiple entities card](https://user-images.githubusercontent.com/457678/52009165-900cc980-24d2-11e9-8cc6-c77de58465b5.png)
 
 ```yaml
-type: custom:mini-graph-card
+type: custom:mini-prometheus-graph-card
 name: SERVER
 icon: mdi:server
 entities:
@@ -307,12 +357,63 @@ entities:
   - sensor.server_received
 ```
 
+#### Prometheus queries
+
+```yaml
+type: custom:mini-prometheus-graph-card
+name: Node load
+icon: mdi:chart-line
+prometheus:
+  url: https://prometheus.example.com
+  interval: 1m
+queries:
+  - query: node_load1{instance="node1:9100"}
+    name: Node 1
+  - query: node_load1{instance="node2:9100"}
+    name: Node 2
+    show_state: true
+hours_to_show: 24
+points_per_hour: 2
+```
+
+#### Mixed Home Assistant + Prometheus
+
+```yaml
+type: custom:mini-prometheus-graph-card
+name: Power
+prometheus:
+  url: https://prometheus.example.com
+entities:
+  - entity: sensor.home_power
+    name: House
+queries:
+  - query: ups_load_percent
+    name: UPS
+    unit: "%"
+    y_axis: secondary
+hours_to_show: 24
+```
+
+#### Prometheus state only (instant query)
+
+```yaml
+type: custom:mini-prometheus-graph-card
+name: Cluster
+prometheus:
+  url: https://prometheus.example.com
+queries:
+  - query: sum(up{job="kubernetes-nodes"})
+    name: Nodes up
+show:
+  graph: false
+```
+
 #### Bar chart card
 
 ![Bar chart card](https://user-images.githubusercontent.com/457678/52970286-985e7300-33b3-11e9-89bc-1278c4e2ecf2.png)
 
 ```yaml
-type: custom:mini-graph-card
+type: custom:mini-prometheus-graph-card
 entities:
   - entity: sensor.energy_consumption
 name: ENERGY CONSUMPTION
@@ -327,7 +428,7 @@ Use the `hours_to_show` option to specify how many hours of history the graph sh
 Use the `points_per_hour` option to specify the accuracy/detail of the graph.
 
 ```yaml
-type: custom:mini-graph-card
+type: custom:mini-prometheus-graph-card
 entities:
   - sensor.living_room_temp
 name: LIVING ROOM
@@ -339,7 +440,7 @@ points_per_hour: 0.25
 Use the `show` option to show/hide UI elements.
 
 ```yaml
-type: custom:mini-graph-card
+type: custom:mini-prometheus-graph-card
 entities:
   - sensor.humidity
 show:
@@ -356,19 +457,19 @@ You can stack cards horizontally by using one or more `horizontal-stack(s)`.
 ```yaml
 type: horizontal-stack
 cards:
-  - type: custom:mini-graph-card
+  - type: custom:mini-prometheus-graph-card
     entities:
       - sensor.humidity
     line_color: blue
     line_width: 8
     font_size: 75
-  - type: custom:mini-graph-card
+  - type: custom:mini-prometheus-graph-card
     entities:
       - sensor.illumination
     line_color: '#e74c3c'
     line_width: 8
     font_size: 75
-  - type: custom:mini-graph-card
+  - type: custom:mini-prometheus-graph-card
     entities:
       - sensor.temperature
     line_color: var(--accent-color)
@@ -382,7 +483,7 @@ Have the graph change line color dynamically.
 ![Dynamic line color](https://user-images.githubusercontent.com/457678/52573150-cbd05900-2e19-11e9-9e01-740753169093.png)
 
 ```yaml
-type: custom:mini-graph-card
+type: custom:mini-prometheus-graph-card
 entities:
   - sensor.sensor_temperature
 show:
@@ -403,7 +504,7 @@ shows turning off the line, points and legend.
 ![Alternate y-axis](https://user-images.githubusercontent.com/373079/60764115-63cf2780-a0c6-11e9-8b9a-97fc47161180.png)
 
 ```yaml
-type: custom:mini-graph-card
+type: custom:mini-prometheus-graph-card
 entities:
   - entity: sensor.verandah
     name: Verandah
@@ -431,7 +532,7 @@ show:
 You can group values by date, this way you can visualize for example daily energy consumption.
 
 ```yaml
-type: custom:mini-graph-card
+type: custom:mini-prometheus-graph-card
 entities:
   - entity: sensor.energy_daily
 name: Energy consumption
@@ -449,7 +550,7 @@ from last week.
 ![mini_temperature_aggregate_daily](https://user-images.githubusercontent.com/8268674/66688610-44c0d280-ec7f-11e9-86c2-a728da239dab.png)
 
 ```yaml
-type: custom:mini-graph-card
+type: custom:mini-prometheus-graph-card
 entities:
   - entity: sensor.outside_temp
     aggregate_func: max
@@ -474,7 +575,7 @@ group_by: date
 You can render non-numeric states by providing state_map config. For example this way you can show data coming from binary sensors.
 
 ```yaml
-type: custom:mini-graph-card
+type: custom:mini-prometheus-graph-card
 entities:
   - entity: binary_sensor.living_room_motion
     name: Living room
@@ -506,7 +607,7 @@ state_map:
 It is possible to show a state without displaying a graph for a sensor.
 Imagine there are two CO-2 sensors & one humidity sensor; graphs are displayed for the CO-2 only, and the humidity is shown as a state only.
 ```yaml
-type: custom:mini-graph-card
+type: custom:mini-prometheus-graph-card
 entities:
   - entity: sensor.xiaomi_cg_1_humidity
     show_state: true
@@ -544,7 +645,7 @@ dict_attribute:
 ```
 Such data should be addressed as `dict_attribute.sub_attribute`:
 ```yaml
-type: custom:mini-graph-card
+type: custom:mini-prometheus-graph-card
 entities:
   - entity: sensor.testing_object_data
     attribute: dict_attribute.value_1
@@ -569,7 +670,7 @@ list_attribute:
 ```
 Such data should be addressed as `list_attribute.index.sub_attribute`:
 ```yaml
-type: custom:mini-graph-card
+type: custom:mini-prometheus-graph-card
 entities:
   - entity: sensor.testing_object_data_list
     attribute: list_attribute.0.value_1
@@ -583,14 +684,14 @@ entities:
 1. Clone this repository into your `config/www` folder using git:
 
 ```console
-$ git clone https://github.com/kalkih/mini-graph-card.git
+$ git clone https://github.com/jValdron/mini-prometheus-graph-card.git
 ```
 
 2. Add a reference to the card in your `ui-lovelace.yaml`:
 
 ```yaml
 resources:
-  - url: /local/mini-graph-card/dist/mini-graph-card-bundle.js
+  - url: /local/mini-prometheus-graph-card/dist/mini-prometheus-graph-card-bundle.js
     type: module
 ```
 
@@ -598,9 +699,9 @@ resources:
 
 *Requires `nodejs` & `npm`.*
 
-1. Move into the `mini-graph-card` repo, checkout the *dev* branch & install dependencies:
+1. Move into the `mini-prometheus-graph-card` repo, checkout the *dev* branch & install dependencies:
 ```console
-$ cd mini-graph-card && git checkout dev && npm install
+$ cd mini-prometheus-graph-card && git checkout dev && npm install
 ```
 
 2. Make changes to the source code.
@@ -619,7 +720,7 @@ $ npm run build
 $ npm run watch
 ```
 
-*The new `mini-graph-card-bundle.js` will be build and ready inside `/dist`.*
+*The new `mini-prometheus-graph-card-bundle.js` will be build and ready inside `/dist`.*
 
 Note that the `dev` branch is the most up-to-date and matches our beta releases.
 
@@ -628,7 +729,7 @@ Please refer to the [Contribution Guidelines](./CONTRIBUTING.md) if you're inter
 ## Getting errors?
 Make sure you have `javascript_version: latest` in your `configuration.yaml` under `frontend:`.
 
-Make sure you have the latest versions of `mini-graph-card.js` & `mini-graph-lib.js`.
+Make sure you have the latest version of `mini-prometheus-graph-card-bundle.js`.
 
 If you have issues after updating the card, try clearing your browser cache.
 

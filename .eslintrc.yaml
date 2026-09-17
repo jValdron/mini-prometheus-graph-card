@@ -14,3 +14,6 @@ globals:
   window: true
   Event: true
   customElements: true
+  fetch: true
+  btoa: true
+  URL: true

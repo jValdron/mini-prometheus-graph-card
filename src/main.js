@@ -4,6 +4,7 @@ import { stateIcon } from 'custom-card-helpers';
 import SparkMD5 from 'spark-md5';
 import { interpolateRgb } from 'd3-interpolate';
 import Graph from './graph';
+import Prometheus from './prometheus';
 import style from './style';
 import handleClick from './handleClick';
 import buildConfig from './buildConfig';
@@ -60,6 +61,14 @@ class MiniGraphCard extends LitElement {
     const queue = [];
     this.config.entities.forEach((entity, index) => {
       this.config.entities[index].index = index; // Required for filtered views
+      if (entity.query) {
+        if (!this.entity[index]) {
+          this.entity[index] = this.makePromEntity(entity);
+          queue.push(`prom-${index}`);
+          updated = true;
+        }
+        return;
+      }
       const entityState = hass && hass.states[entity.entity] || undefined;
       if (entityState && this.entity[index] !== entityState) {
         this.entity[index] = entityState;
@@ -103,7 +112,7 @@ class MiniGraphCard extends LitElement {
   setConfig(config) {
     this.config = buildConfig(config, this.config);
     this._md5Config = SparkMD5.hash(JSON.stringify(this.config));
-    const entitiesChanged = !compareArray(this.config.entities || [], config.entities);
+    const entitiesChanged = !compareArray(this.config.entities || [], config.entities || []);
 
     if (!this.Graph || entitiesChanged) {
       if (this._hass) this.hass = this._hass;
@@ -119,12 +128,16 @@ class MiniGraphCard extends LitElement {
           getFirstDefinedItem(
             entity.smoothing,
             this.config.smoothing,
-            !entity.entity.startsWith('binary_sensor.'), // turn off for binary sensor by default
+            !(entity.entity && entity.entity.startsWith('binary_sensor.')), // turn off for binary sensor by default
           ),
           this.config.logarithmic,
         ),
       );
     }
+    this.Prometheus = this.config.prometheus && this.config.prometheus.url
+      ? new Prometheus(this.config.prometheus)
+      : undefined;
+    if (this.isConnected) this.startPromPolling();
   }
 
   connectedCallback() {
@@ -138,9 +151,11 @@ class MiniGraphCard extends LitElement {
         this.config.update_interval * 1000,
       );
     }
+    this.startPromPolling();
   }
 
   disconnectedCallback() {
+    this.stopPromPolling();
     if (this.interval) {
       clearInterval(this.interval);
     }
@@ -178,7 +193,9 @@ class MiniGraphCard extends LitElement {
   render({ config } = this) {
     if (!config || !this.entity || !this._hass)
       return html``;
-    if (this.config.entities.some((_, index) => this.entity[index] === undefined)) {
+    if (this.config.entities.some((_, index) => (
+      this.entity[index] === undefined || this.entity[index].error
+    ))) {
       return this.renderWarnings();
     }
     return html`
@@ -202,14 +219,29 @@ class MiniGraphCard extends LitElement {
   renderWarnings() {
     return html`
       <hui-warning>
-        <div>mini-graph-card</div>
-        ${this.config.entities.map((_, index) => (!this.entity[index] ? html`
-          <div>
-            Entity not available: ${this.config.entities[index].entity}
-          </div>
-        ` : html``))}
+        <div>mini-prometheus-graph-card</div>
+        ${this.config.entities.map((_, index) => this.renderWarningItem(index))}
       </hui-warning>
     `;
+  }
+
+  renderWarningItem(index) {
+    if (!this.entity[index]) {
+      return html`
+        <div>
+          Entity not available: ${this.config.entities[index].entity}
+        </div>
+      `;
+    }
+    if (this.entity[index].error) {
+      return html`
+        <div>
+          Query failed: ${this.config.entities[index].name || this.config.entities[index].query}
+          <br>${this.entity[index].error}
+        </div>
+      `;
+    }
+    return html``;
   }
 
 
@@ -639,6 +671,10 @@ class MiniGraphCard extends LitElement {
 
   handlePopup(e, entity) {
     e.stopPropagation();
+    if (this.isPrometheusEntity(entity)) {
+      const { action } = this.config.tap_action;
+      if (!action || action === 'more-info' || action === 'none') return;
+    }
     handleClick(this, this._hass, this.config, this.config.tap_action, entity.entity_id || entity);
   }
 
@@ -693,12 +729,18 @@ class MiniGraphCard extends LitElement {
   }
 
   computeName(index) {
-    return this.config.entities[index].name
+    const seriesConfig = this.config.entities[index];
+    return seriesConfig.name
       || this.entity[index].attributes.friendly_name
-      || this.entity[index].entity_id;
+      || this.entity[index].entity_id
+      || seriesConfig.query
+      || seriesConfig.entity;
   }
 
   computeIcon(entity) {
+    if (this.isPrometheusEntity(entity)) {
+      return this.config.icon || entity.attributes.icon || ICONS.temperature;
+    }
     return (
       this.config.icon
       || entity.attributes.icon
@@ -763,7 +805,8 @@ class MiniGraphCard extends LitElement {
   }
 
   updateOnInterval() {
-    if (this.stateChanged && !this.updating) {
+    const queuedProm = this.queuePromQueries();
+    if ((this.stateChanged || queuedProm) && !this.updating) {
       this.stateChanged = false;
       this.updateData();
     }
@@ -903,6 +946,9 @@ class MiniGraphCard extends LitElement {
   }
 
   async updateEntity(entity, index, initStart, end) {
+    if (this.config.entities[index] && this.config.entities[index].query) {
+      return this.updatePrometheusEntity(index, initStart, end);
+    }
     if (!entity
       || !this.updateQueue.includes(`${entity.entity_id}-${index}`)
       || this.config.entities[index].show_graph === false
@@ -1018,6 +1064,148 @@ class MiniGraphCard extends LitElement {
     return this._hass.callApi('GET', url);
   }
 
+  hasPromQueries() {
+    return Boolean(this.config.entities && this.config.entities.some(item => item.query));
+  }
+
+  isPrometheusEntity(entity) {
+    if (!entity || !this.config.entities) return false;
+    const index = this.entity.indexOf(entity);
+    if (index >= 0) return Boolean(this.config.entities[index].query);
+    return this.config.entities.some(item => item.query && item.query === entity.entity_id);
+  }
+
+  queuePromQueries() {
+    if (!this.hasPromQueries()) return false;
+    let queued = false;
+    this.config.entities.forEach((item, index) => {
+      if (!item.query) return;
+      const key = `prom-${index}`;
+      if (!this.updateQueue.includes(key)) {
+        this.updateQueue.push(key);
+        queued = true;
+      }
+    });
+    return queued;
+  }
+
+  startPromPolling() {
+    this.stopPromPolling();
+    if (!this.hasPromQueries()) return;
+
+    const tick = () => {
+      if (!this.updating && this.Graph) {
+        this.queuePromQueries();
+        this.updateData();
+      }
+    };
+
+    window.requestAnimationFrame(tick);
+    if (this.config.update_interval) return;
+    this._promInterval = setInterval(tick, 60 * 1000);
+  }
+
+  stopPromPolling() {
+    if (this._promInterval) {
+      clearInterval(this._promInterval);
+      this._promInterval = undefined;
+    }
+  }
+
+  prometheusNeedsHistory(index) {
+    const seriesConfig = this.config.entities[index];
+    if (seriesConfig.show_graph === false) return false;
+    const { show } = this.config;
+    if (show.graph) return true;
+    return Boolean(show.extrema || show.average || show.state === 'last');
+  }
+
+  makePromEntity(seriesConfig, last, error) {
+    const { query, name, unit } = seriesConfig;
+    const { state: lastState } = last || {};
+    const state = error ? 'unavailable' : lastState;
+    return {
+      entity_id: query,
+      state,
+      attributes: {
+        friendly_name: name || query,
+        unit_of_measurement: unit !== undefined
+          ? unit
+          : (this.config.unit !== undefined ? this.config.unit : ''),
+        icon: this.config.icon,
+      },
+      error: error ? (error.message || String(error)) : undefined,
+    };
+  }
+
+  async updatePrometheusEntity(index, initStart, end) {
+    const seriesConfig = this.config.entities[index];
+    const queueKey = `prom-${index}`;
+    if (!this.updateQueue.includes(queueKey)) return;
+    this.updateQueue = this.updateQueue.filter(entry => entry !== queueKey);
+
+    const needHistory = this.prometheusNeedsHistory(index);
+    const cacheKey = `prom_${index}`;
+    let stateHistory = [];
+
+    try {
+      const { query } = seriesConfig;
+      if (needHistory) {
+        const step = Prometheus.parseDuration(
+          seriesConfig.interval != null
+            ? seriesConfig.interval
+            : this.config.prometheus.interval,
+          3600 / this.config.points_per_hour,
+        );
+        stateHistory = await this.Prometheus.queryRange(query, initStart, end, step);
+        if (this.config.cache) {
+          this
+            .setCache(cacheKey, {
+              hours_to_show: this.config.hours_to_show,
+              last_fetched: new Date(),
+              data: stateHistory,
+              version,
+            }, this.config.useCompress)
+            .catch((err) => {
+              log(err);
+              localForage.clear();
+            });
+        }
+      } else {
+        stateHistory = await this.Prometheus.queryInstant(query);
+      }
+    } catch (err) {
+      log(err);
+      if (needHistory && this.config.cache) {
+        const cached = await this.getCache(cacheKey, this.config.useCompress);
+        if (cached && cached.data && cached.data.length) {
+          stateHistory = cached.data;
+        }
+      }
+      if (stateHistory.length === 0) {
+        this.entity[index] = this.makePromEntity(seriesConfig, undefined, err);
+        this.entity = [...this.entity];
+        return;
+      }
+    }
+
+    const last = stateHistory[stateHistory.length - 1];
+    this.entity[index] = this.makePromEntity(seriesConfig, last);
+    this.entity = [...this.entity];
+
+    if (needHistory) {
+      if (seriesConfig.fixed_value === true && last) {
+        this.Graph[index].history = [last, last];
+      } else {
+        this.Graph[index].history = stateHistory;
+      }
+    }
+
+    if (stateHistory.length === 0) return;
+
+    if (index === 0) this.updateExtrema(stateHistory);
+  }
+
   updateExtrema(history) {
     const { extrema, average } = this.config.show;
     this.abs = [
@@ -1077,13 +1265,13 @@ class MiniGraphCard extends LitElement {
   }
 }
 
-customElements.define('mini-graph-card', MiniGraphCard);
+customElements.define('mini-prometheus-graph-card', MiniGraphCard);
 
 // Configure the preview in the Lovelace card picker
 window.customCards = window.customCards || [];
 window.customCards.push({
-  type: 'mini-graph-card',
-  name: 'Mini Graph Card',
+  type: 'mini-prometheus-graph-card',
+  name: 'Mini Prometheus Graph Card',
   preview: false,
-  description: 'The Mini Graph card is a minimalistic and customizable graph card',
+  description: 'A minimalistic graph card for Home Assistant entities and Prometheus queries',
 });
