@@ -4,10 +4,10 @@ import { decompress } from './utils';
 import { version } from '../package.json';
 
 localForage.config({
-  name: 'mini-graph-card',
+  name: 'mini-prometheus-graph-card',
   version: 1.0,
   storeName: 'entity_history_cache',
-  description: 'Mini graph card uses caching for the entity history',
+  description: 'Mini prometheus graph card uses caching for history',
 });
 
 localForage.iterate((data, key) => {
@@ -22,7 +22,7 @@ localForage.iterate((data, key) => {
 });
 
 console.info(
-  `%c MINI-GRAPH-CARD %c ${version} `,
+  `%c MINI-PROMETHEUS-GRAPH-CARD %c ${version} `,
   'color: white; background: coral; font-weight: 700;',
   'color: coral; background: white; font-weight: 700;',
 );

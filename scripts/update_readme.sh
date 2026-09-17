@@ -20,6 +20,6 @@ if [ ! "${BRANCH}" = "refs/heads/master" ]; then
 fi
 
 sed -i -e "s/NEXT_VERSION/v${VERSION}/g" ./README.md
-sed -i -e "s|https://github.com/kalkih/mini-graph-card/releases/download/.*/mini-graph-card-bundle.js|https://github.com/kalkih/mini-graph-card/releases/download/v${VERSION}/mini-graph-card-bundle.js|g" ./README.md
-sed -i -e "s|-\surl:\s/local/mini-graph-card-bundle.js?v=.*|- url: /local/mini-graph-card-bundle.js?v=${VERSION}|g" ./README.md
+sed -i -e "s|https://github.com/jValdron/mini-prometheus-graph-card/releases/download/.*/mini-prometheus-graph-card-bundle.js|https://github.com/jValdron/mini-prometheus-graph-card/releases/download/v${VERSION}/mini-prometheus-graph-card-bundle.js|g" ./README.md
+sed -i -e "s|-\surl:\s/local/mini-prometheus-graph-card-bundle.js?v=.*|- url: /local/mini-prometheus-graph-card-bundle.js?v=${VERSION}|g" ./README.md
 

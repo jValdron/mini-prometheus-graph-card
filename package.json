@@ -1,7 +1,7 @@
 {
-  "name": "mini-graph-card",
+  "name": "mini-prometheus-graph-card",
   "version": "0.13.0",
-  "description": "A minimalistic and customizable graph card for Home Assistant Lovelace UI",
+  "description": "A minimalistic graph card for Home Assistant Lovelace UI with Prometheus query support",
   "keywords": [
     "home-assistant",
     "homeassistant",
@@ -11,11 +11,12 @@
     "sensor",
     "graph",
     "svg",
-    "custom-cards"
+    "custom-cards",
+    "prometheus"
   ],
   "main": "src/main.js",
   "module": "src/main.js",
-  "repository": "git@github.com:kalkih/mini-graph-card.git",
+  "repository": "git@github.com:jValdron/mini-prometheus-graph-card.git",
   "author": "Karl Kihlström <mrkihlstrom@gmail.com>",
   "license": "MIT",
   "dependencies": {
@@ -58,7 +59,7 @@
   "scripts": {
     "build": "npm run lint && npm run rollup && npm run babel",
     "rollup": "rollup -c",
-    "babel": "babel dist/mini-graph-card-bundle.js --out-file dist/mini-graph-card-bundle.js",
+    "babel": "babel dist/mini-prometheus-graph-card-bundle.js --out-file dist/mini-prometheus-graph-card-bundle.js",
     "lint": "eslint src/* --ext .js",
     "watch": "rollup -c --watch",
     "postversion": "npm run build"
