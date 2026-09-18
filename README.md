@@ -35,7 +35,7 @@ This card is available in [HACS](https://hacs.xyz/) (Home Assistant Community St
 2. Grab `mini-prometheus-graph-card-bundle.js`:
 
   ```console
-  $ wget https://github.com/jValdron/mini-prometheus-graph-card/releases/download/v0.13.0-prom2/mini-prometheus-graph-card-bundle.js
+  $ wget https://github.com/jValdron/mini-prometheus-graph-card/releases/download/v0.13.0-prom3/mini-prometheus-graph-card-bundle.js
   ```
 
 3. Add the resource reference as decribed below.
@@ -46,7 +46,7 @@ If you configure Lovelace via YAML, add a reference to `mini-prometheus-graph-ca
 
   ```yaml
   resources:
-    - url: /local/mini-prometheus-graph-card-bundle.js?v=0.13.0-prom2
+    - url: /local/mini-prometheus-graph-card-bundle.js?v=0.13.0-prom3
       type: module
   ```
 
@@ -69,7 +69,7 @@ Else, if you prefer the graphical editor, use the menu to add the resource:
 
   ```yaml
   resources:
-    - url: /local/mini-prometheus-graph-card-bundle.js?v=0.13.0-prom2
+    - url: /local/mini-prometheus-graph-card-bundle.js?v=0.13.0-prom3
       type: module
   ```
 

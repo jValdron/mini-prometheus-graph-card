@@ -46,7 +46,7 @@ export default class Prometheus {
   }
 
   async queryInstant(query, time) {
-    const params = { query };
+    const params = { query: this._normalizeQuery(query) };
     if (time != null) params.time = String(this._toUnix(time));
     const data = await this._fetch('/api/v1/query', params);
     return this._historyFromResult(data, query);
@@ -54,12 +54,16 @@ export default class Prometheus {
 
   async queryRange(query, start, end, step) {
     const data = await this._fetch('/api/v1/query_range', {
-      query,
+      query: this._normalizeQuery(query),
       start: String(this._toUnix(start)),
       end: String(this._toUnix(end)),
       step: String(step),
     });
     return this._historyFromResult(data, query);
+  }
+
+  _normalizeQuery(query) {
+    return String(query).replace(/\s+/g, ' ').trim();
   }
 
   _buildHeaders(config) {
