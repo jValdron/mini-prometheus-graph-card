@@ -35,7 +35,7 @@ This card is available in [HACS](https://hacs.xyz/) (Home Assistant Community St
 2. Grab `mini-prometheus-graph-card-bundle.js`:
 
   ```console
-  $ wget https://github.com/jValdron/mini-prometheus-graph-card/releases/download/v0.13.0-prom1/mini-prometheus-graph-card-bundle.js
+  $ wget https://github.com/jValdron/mini-prometheus-graph-card/releases/download/v0.13.0-prom2/mini-prometheus-graph-card-bundle.js
   ```
 
 3. Add the resource reference as decribed below.
@@ -46,7 +46,7 @@ If you configure Lovelace via YAML, add a reference to `mini-prometheus-graph-ca
 
   ```yaml
   resources:
-    - url: /local/mini-prometheus-graph-card-bundle.js?v=0.13.0-prom1
+    - url: /local/mini-prometheus-graph-card-bundle.js?v=0.13.0-prom2
       type: module
   ```
 
@@ -69,7 +69,7 @@ Else, if you prefer the graphical editor, use the menu to add the resource:
 
   ```yaml
   resources:
-    - url: /local/mini-prometheus-graph-card-bundle.js?v=0.13.0-prom1
+    - url: /local/mini-prometheus-graph-card-bundle.js?v=0.13.0-prom2
       type: module
   ```
 
@@ -191,18 +191,17 @@ Required when any series has a PromQL `query`.
 
 | Name | Type | Default | Since | Description |
 |------|:----:|:-------:|:-----:|-------------|
-| url ***(required)*** | string |         | v0.13.0<br>(prom1) | Prometheus base URL, e.g. `https://prometheus.example.com` or a same-origin path such as `/prometheus`.
+| url ***(required)*** | string |         | v0.13.0<br>(prom1) | Prometheus base URL, e.g. `https://prometheus.example.com` or a same-origin path such as `/prometheus`. See [Reverse proxy](#reverse-proxy).
+| url_param | string |         | v0.13.0<br>(prom2) | Query parameter that holds the backend URL. Set to `url` for hass-web-proxy so PromQL path and params are applied inside that parameter instead of as extra proxy query args.
+| target | string |         | v0.13.0<br>(prom2) | Backend Prometheus URL when using `url_param`. Optional if `prometheus.url` already includes that parameter.
+| hass_auth | boolean | `false` | v0.13.0<br>(prom2) | Send the signed-in Home Assistant bearer token (`Authorization: Bearer …`). Required for hass-web-proxy.
 | interval | string/number | `3600 / points_per_hour` seconds | v0.13.0<br>(prom1) | Default `step` for `/api/v1/query_range`.
 | token | string |         | v0.13.0<br>(prom1) | Optional Bearer token (`Authorization: Bearer …`).
 | username | string |         | v0.13.0<br>(prom1) | Optional HTTP basic auth username.
 | password | string |         | v0.13.0<br>(prom1) | Optional HTTP basic auth password.
 | headers | map |         | v0.13.0<br>(prom1) | Extra HTTP headers. Lovelace YAML is visible in the browser; prefer a reverse proxy for secrets.
 
-The card runs in the browser and calls Prometheus with `fetch`. There is no Home Assistant backend proxy.
-
-* Prefer a **same-origin reverse proxy** (Traefik/nginx) in front of Prometheus so CORS and credentials stay off the card.
-* A direct Prometheus URL needs CORS (`Access-Control-Allow-Origin`, and `Authorization` if you send auth headers).
-* Prometheus series never create HA entities or Recorder history.
+Prometheus series never create HA entities or Recorder history. The card queries Prometheus from the browser; see [Reverse proxy](#reverse-proxy) if Prometheus is on another host.
 
 #### Available show options
 All properties are optional.
@@ -678,6 +677,30 @@ entities:
 ```
 ![image](https://github.com/ildar170975/mini-graph-card/assets/71872483/eebd0cea-da93-4bf5-97a1-118edd2a9c5e)
 
+## Reverse proxy
+
+This card runs in the browser and calls Prometheus with `fetch`. Most browsers **block requests to a different domain** than the page you are on (CORS). If Home Assistant is at `https://ha.example.com` and Prometheus is at `https://prometheus.example.com`, the graph will typically fail unless you proxy the traffic.
+
+The usual fix is to expose Prometheus on the **same domain** as Home Assistant (Traefik, nginx, Caddy, …), then point the card at a same-origin path such as `/prometheus`.
+
+If you cannot do that, [hass-web-proxy](https://github.com/dermotduffy/hass-web-proxy-integration) can proxy Prometheus through Home Assistant:
+
+1. Install **Home Assistant Web Proxy** from [HACS](https://my.home-assistant.io/redirect/hacs_repository/?owner=dermotduffy&repository=hass-web-proxy-integration&category=integration) (`+ Explore & download repositories` → search `Home Assistant Web Proxy` → Download).
+2. Add the integration: **Settings → Devices & Services → Add integration** → `Home Assistant Web Proxy`.
+3. Open the integration **Configure** options and add a static URL pattern for Prometheus query APIs, e.g. `https://<prometheus URL>/api/v1/*`.
+4. Configure the card:
+
+```yaml
+prometheus:
+  url: /api/hass_web_proxy/v0/
+  url_param: url
+  target: https://prometheus.example.com
+  hass_auth: true
+```
+
+That sends the signed-in Home Assistant bearer token and nests the Prometheus request inside the proxy `url` parameter.
+
+Gzipped Prometheus responses were truncated by the proxy (it decompresses the body but keeps the compressed `Content-Length`). At the time of writing, a fix is in [hass-web-proxy-integration#145](https://github.com/dermotduffy/hass-web-proxy-integration/pull/145). If graphs fail with a JSON parse error on a cut-off payload, check whether that PR (or a later release that includes it) is installed.
 
 ## Development
 

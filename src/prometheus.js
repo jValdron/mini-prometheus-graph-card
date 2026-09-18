@@ -20,8 +20,12 @@ export class PrometheusError extends Error {
 }
 
 export default class Prometheus {
-  constructor(config = {}) {
-    this._url = String(config.url || '').replace(/\/$/, '');
+  constructor(config = {}, getAccessToken) {
+    this._url = String(config.url || '');
+    this._urlParam = config.url_param;
+    this._target = config.target;
+    this._hassAuth = Boolean(config.hass_auth);
+    this._getAccessToken = getAccessToken;
     this._headers = this._buildHeaders(config);
   }
 
@@ -72,8 +76,36 @@ export default class Prometheus {
     return date instanceof Date ? date.getTime() / 1000 : Number(date);
   }
 
+  _requestHeaders() {
+    const headers = { ...this._headers };
+    if (this._hassAuth && this._getAccessToken) {
+      const token = this._getAccessToken();
+      if (token) headers.Authorization = `Bearer ${token}`;
+    }
+    return headers;
+  }
+
   _buildUrl(path, params) {
-    const url = new URL(`${this._url}${path}`);
+    const { origin } = window.location;
+    if (this._urlParam) {
+      const outer = new URL(this._url, origin);
+      const target = this._target || outer.searchParams.get(this._urlParam);
+      if (!target) {
+        throw new PrometheusError(
+          `prometheus.url_param "${this._urlParam}" needs prometheus.target `
+          + 'or that query parameter on prometheus.url',
+        );
+      }
+      const inner = new URL(target);
+      inner.pathname = `${inner.pathname.replace(/\/$/, '')}${path}`;
+      Object.keys(params).forEach((key) => {
+        if (params[key] != null) inner.searchParams.set(key, params[key]);
+      });
+      outer.searchParams.set(this._urlParam, inner.toString());
+      return outer.toString();
+    }
+
+    const url = new URL(`${this._url.replace(/\/$/, '')}${path}`, origin);
     Object.keys(params).forEach((key) => {
       if (params[key] != null) url.searchParams.set(key, params[key]);
     });
@@ -83,7 +115,7 @@ export default class Prometheus {
   async _fetch(path, params) {
     let response;
     try {
-      response = await fetch(this._buildUrl(path, params), { headers: this._headers });
+      response = await fetch(this._buildUrl(path, params), { headers: this._requestHeaders() });
     } catch (err) {
       throw new PrometheusError(
         `Failed to reach Prometheus: ${err.message}. `

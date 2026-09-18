@@ -135,7 +135,10 @@ class MiniGraphCard extends LitElement {
       );
     }
     this.Prometheus = this.config.prometheus && this.config.prometheus.url
-      ? new Prometheus(this.config.prometheus)
+      ? new Prometheus(
+        this.config.prometheus,
+        () => this._hass && this._hass.auth && this._hass.auth.data.access_token,
+      )
       : undefined;
     if (this.isConnected) this.startPromPolling();
   }
